@@ -7,7 +7,13 @@
 local storyboard = require( "storyboard" )
 local scene = storyboard.newScene()
 local user
+local throwables = {}
 --local myText
+
+local beginX 
+local beginY  
+local endX  
+local endY
 
 local moveUser = {}
 staticMaterial = {density=2, friction=1, bounce=0.1}
@@ -22,8 +28,8 @@ physics.setGravity(0, 0)
 
 system.setAccelerometerInterval( 100 )
 
-require( "tilebg" )
-local bg = tileBG("carpet.png", 60, 48)
+--require( "tilebg" )
+--local bg = tileBG("carpet.png", 12, 3)
 
 --------------------------------------------
 
@@ -41,6 +47,7 @@ local screenW, screenH, halfW = display.contentWidth, display.contentHeight, dis
 local function gameListeners(action)
   if(action == 'add') then
     Runtime:addEventListener('accelerometer', moveUser)
+    Runtime:addEventListener("touch", swipe)
   else
   end
 end
@@ -50,32 +57,63 @@ local function stopUser()
   user.bodyType = "dynamic"
 end
 
+function swipe(event)
+  if event.phase == "began" then
+    beginX = event.x
+    beginY = event.y
+  end
+
+  if event.phase == "ended"  then
+    endX = event.x
+    endY = event.y
+    throw()
+  end
+end
+
 function moveUser:accelerometer(e)
   stopUser()
-  --myText.text = e.xGravity
   user.isAwake = true
   user:applyForce( e.xGravity * 100, -e.yGravity * 100, user.x, user.y )
-  --timer.performWithDelay(2000, stopUser)
-  --physics.setGravity( ( 9.8 * e.xGravity ), ( -9.8 * e.yGravity ) )
+end
+
+function throw()
+  local throwable = throwables[1]
+  local x = (endX - beginX) / 10
+  local y = (endY - beginY) / 10
+  throwable:applyForce( x, y, throwable.x, throwable.y )
 end
 
 local function addDesk( x, y )
-	local desk = display.newImageRect( "desk.png", 160, 80 )
+	local desk = display.newImageRect( "desk.png", 120, 90 )
 	desk.x, desk.y = x, y
 
-  left = -43
-  right = 77
-  top = 0
-  bottom = 30
+  left = -60
+  right = 55
+  top = -45
+  bottom = 40
 
   local shape = {left,top, right,top, right,bottom, left,bottom}
   local material = {density=2, friction=1, bounce=0.1, shape=shape}
   physics.addBody(desk, 'static', material)
 
-	local throwable = display.newImageRect( "paper.png", 20, 20)
-	throwable.x = x + 30
-  throwable.y = y + 10
-  physics.addBody( throwable, 'static', {density=0.1, friction=1, bounce=0.1, radius=36})
+  local paper = createPaper()
+	paper.x = x + 30
+  paper.y = y + 10
+end
+
+function createPaper()
+	local paper = display.newImageRect( "paper.png", 20, 20)
+  setupThrowable(paper, {radius=6})
+  return paper
+end
+
+function setupThrowable(throwable, options)
+  material = {density=0.1, friction=1, bounce=0.1}
+  for k,v in pairs(options) do material[k] = v end
+
+  physics.addBody( throwable, 'dynamic', material)
+  throwable.isSensor = true
+  throwables[#throwables + 1] = throwable
 end
 
 local function addUser( view, x, y )
@@ -86,13 +124,17 @@ local function addUser( view, x, y )
 end
 
 local function addTeacher( view, x, y )
-	teacher = display.newImageRect( "teacher.png", 100, 70)
+	teacher = display.newImageRect( "teacher.png", 70, 70)
 	teacher.x = screenW / 2
   teacher.y = 70
   physics.addBody( teacher, 'dynamic', {density=0.1, friction=1, bounce=0.1, radius=36})
 end
 
 local function addWalls()
+	local carpet = display.newImageRect( "carpet.png", screenW * 2, screenH * 2)
+	carpet.x = 0
+  carpet.y = 0
+
   local tWall = display.newRect(0, 0, screenW * 2, 1)
   local lWall = display.newRect(0, 0, 1, screenH * 2)
   local rWall = display.newRect(screenW, 0, 1, screenH * 2)
@@ -101,25 +143,23 @@ local function addWalls()
   physics.addBody(lWall, "static", staticMaterial)
   physics.addBody(rWall, "static", staticMaterial)
   physics.addBody(bWall, "static", staticMaterial)
+
+	local whiteboard = display.newImageRect( "whiteboard.png", 300, 10)
+	whiteboard.x = screenW / 2
+  whiteboard.y = 5
 end
 
 -- Called when the scene's view does not exist:
 function scene:createScene( event )
 
   addWalls()
-  addDesk( 70, screenH -250)
-  addDesk( 230, screenH - 250)
-  addDesk( 130, screenH - 130)
+  addDesk( 70, screenH -300)
+  addDesk( 230, screenH - 300)
+  addDesk( 160, screenH - 130)
   addUser()
   addTeacher()
 
-  --myText = display.newText( "hello", 130, 30, native.systemFontBold, 12 )
-  --myText:setFillColor( 1, 0, 0 )
-
   gameListeners('add')
-
-  --moveUser:accelerometer({xGravity=100, yGravity=100})
-  --moveUser:accelerometer({xGravity=100, yGravity=100})
 end
 
 
