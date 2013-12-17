@@ -6,19 +6,22 @@
 
 local storyboard = require( "storyboard" )
 local scene = storyboard.newScene()
+
 local user
 local throwables = {}
 local selectedThrowable
 local teacher
 local teacherGlow
-local alert
 local bubble
 local teacherActive
 local strikes = 0
+local level = 1
 local life1
 local life2
 local life3
---local myText
+local desks = {}
+local score = 0
+local waitingToLoadLevel
 
 local beginX
 local beginY
@@ -34,12 +37,8 @@ physics.start()
 physics.pause()
 --physics.setDrawMode( "hybrid" )
 physics.setGravity(0, 0)
---physics.setScale(50)
 
 system.setAccelerometerInterval( 100 )
-
---require( "tilebg" )
---local bg = tileBG("carpet.png", 12, 3)
 
 --------------------------------------------
 
@@ -123,24 +122,75 @@ function moveSelectableToUser()
   selectedThrowable.y = user.y - 20
 end
 
+function gameOver()
+  resetBubble()
+  bubble = display.newImageRect( "detention.png", 300, 250 )
+  bubble.x = 150
+  bubble.y = 90
+  user.removeSelf()
+  teacher.removeSelf()
+end
+
+function checkForNextLevel()
+
+  if waitingToLoadLevel then return false end
+  if selectedThrowable then return false end
+
+  local throwablesLeft = false
+  for i=1, 6 do
+    desk = desks[i]
+    if desk then
+      if desk.throwable then throwablesLeft = true end
+    end
+  end
+  if throwablesLeft then return false end
+
+  if bubble then bubble:removeSelf() end
+
+  numberImg = display.newImageRect( "level_complete.png", 300, 100 )
+  numberImg.x = 150
+  numberImg.y = 250
+
+  level = level + 1
+  waitingToLoadLevel = true
+  timer.performWithDelay(3000, loadLevel)
+end
+
+function updateScore()
+  scoreBox.text = score
+end
+
+function resetBubble()
+  if bubble then
+    bubble.removeSelf()
+    bubble = nil
+  end
+end
+
 function checkForStrike()
   if teacherActive and selectedThrowable then
     strikes = strikes + 1
 
     if strikes == 1 then
-      bubble = display.newImageRect( "caught_you.png", 300, 100 )
       life1.isVisible = false
-    elseif strikes == 2 then
+      resetBubble()
       bubble = display.newImageRect( "caught_you.png", 300, 100 )
+      bubble.x = 150
+      bubble.y = 90
+      timer.performWithDelay(3000, removeBubble)
+      checkForNextLevel()
+    elseif strikes == 2 then
       life2.isVisible = false
+      resetBubble()
+      bubble = display.newImageRect( "caught_you.png", 300, 100 )
+      bubble.x = 150
+      bubble.y = 90
+      timer.performWithDelay(3000, removeBubble)
+      checkForNextLevel()
     elseif strikes == 3 then
       life3.isVisible = false
-      bubble = display.newImageRect( "detention.png", 300, 100 )
+      gameOver()
     end
-
-    bubble.x = 150
-    bubble.y = 90
-    timer.performWithDelay(3000, removeBubble)
 
     selectedThrowable:removeSelf()
     selectedThrowable = nil
@@ -149,8 +199,9 @@ end
 
 function preactivateTeacher()
   teacherGlow.isVisible = true
-  timer.performWithDelay(1000, hideTeacherGlow)
-  timer.performWithDelay(1000, activateTeacher)
+  time = 1100 - (level * 100)
+  timer.performWithDelay(time, hideTeacherGlow)
+  timer.performWithDelay(time, activateTeacher)
 end
 
 function activateTeacher()
@@ -167,26 +218,6 @@ function deactivateTeacher()
   time = math.random(1000,5000)
   timer.performWithDelay(time, preactivateTeacher)
 end
-
---function moveAlertToTeacher()
-  --alert.isAwake = true
-  --alert.isVisible = true
-  --alert.rotation = 0
-  ----alert.x = teacher.x
-  --alert.y = teacher.y
---end
-
---function removeAlert()
-  --if not alert then return end
-  --alert:removeSelf()
-  --alert = nil
---end
-
---function flashAlert()
-  --if not alert then return end
-  --alert.isVisible = not alert.isVisible
-  --timer.performWithDelay(100, flashAlert)
---end
 
 local function onCollision( event )
   if ( event.phase == "began" ) then
@@ -212,18 +243,27 @@ local function onCollision( event )
     end
 
     if collision_teacher and collision_throwable and (not collision_throwable.ignoreCollisions) then
+      resetBubble()
       bubble = display.newImageRect( "who_threw_that.png", 300, 100 )
       bubble.x = 150
       bubble.y = 90
       timer.performWithDelay(3000, removeBubble)
-      --alert = display.newImageRect( "alert.png", 40, 38 )
-      --alert.name = "Alert"
-      --alert.isVisible = false
-      --timer.performWithDelay(10, moveAlertToTeacher)
-      --timer.performWithDelay(10, flashAlert)
-      --timer.performWithDelay(1500, removeAlert)
       collision_throwable.isVisible = false
       collision_throwable.ignoreCollisions = true
+      score = score + 1
+      updateScore()
+      checkForNextLevel()
+      timer.performWithDelay(1000, checkForNextLevel)
+      timer.performWithDelay(2000, checkForNextLevel)
+      timer.performWithDelay(3000, checkForNextLevel)
+    end
+
+    if collision_teacher and collision_user then
+      resetBubble()
+      bubble = display.newImageRect( "get_off_me.png", 300, 100 )
+      bubble.x = 150
+      bubble.y = 90
+      timer.performWithDelay(2000, removeBubble)
     end
   end
 end
@@ -256,7 +296,7 @@ local function addDesk( x, y, throwable_type )
   local material = {density=2, friction=1, bounce=0.1}
   physics.addBody(desk, 'static', material)
 
-  if not throwable_type then return end
+  if not throwable_type then return desk end
 
   local throwable
   if throwable_type == "paper" then
@@ -277,6 +317,7 @@ local function addDesk( x, y, throwable_type )
   throwable.x = x
   throwable.y = y + 14
   desk.throwable = throwable
+  return desk
 end
 
 function createCan()
@@ -375,39 +416,119 @@ end
 -- Called when the scene's view does not exist:
 function scene:createScene( event )
   addRoom()
-  loadLevel(1)
-  addUser()
-  addTeacher()
+  loadLevel()
   addLives()
-
   gameListeners('add')
 
-  deactivateTeacher()
+
+  --scoreBoxBg = display.newRect( 30, 320, 60, 60)
+  --scoreBoxBg:setFillColor( 0, 0, 0, 0.3 )
+
+  scoreBox = display.newText('0', 40, 450, 60, 60, "Helvetica-Bold", 40)
 
   user:applyForce( 0, -100, user.x, user.y )
 end
 
-function loadLevel(id)
-  if id == 1 then
-    addDesk( 70, 200)
-    addDesk( 270, 200, 'rubber')
-    addDesk( 160, 330, 'paper')
-  elseif id == 2 then
-    addDesk( 60, 170, 'plane')
-    addDesk( 250, 210, 'pen')
-    addDesk( 85, 280)
-    addDesk( 70, 380, 'pencil')
-  elseif id == 3 then
-    addDesk( 70, 170, 'ruler')
-    addDesk( 270, 170)
-    addDesk( 70, 290, 'pencil')
-    addDesk( 270, 280, 'paper')
-    addDesk( 70, 400)
-  elseif id == 4 then
-    addDesk( 70, screenH -300, 'plane')
-    addDesk( 230, screenH - 300, 'rubber')
-    addDesk( 160, screenH - 130, 'can')
+function show3()
+  if numberImg then numberImg:removeSelf() end
+  numberImg = display.newImageRect( "3.png", 200, 200 )
+  numberImg.x = 150
+  numberImg.y = 250
+  timer.performWithDelay(1000, show2)
+end
+
+function show2()
+  if numberImg then numberImg:removeSelf() end
+  numberImg = display.newImageRect( "2.png", 200, 200 )
+  numberImg.x = 150
+  numberImg.y = 250
+  timer.performWithDelay(1000, show1)
+end
+
+function show1()
+  if numberImg then numberImg:removeSelf() end
+  numberImg = display.newImageRect( "1.png", 200, 200 )
+  numberImg.x = 150
+  numberImg.y = 250
+  timer.performWithDelay(1000, startLevel)
+end
+
+function startLevel()
+  if numberImg then numberImg:removeSelf() end
+  deactivateTeacher()
+end
+
+function loadLevel()
+
+  waitingToLoadLevel = false
+
+  for i=1, 6 do
+    desk = desks[i]
+    if desk then
+      if desk.throwable then
+        desk.throwable:removeSelf()
+      end
+      desk:removeSelf()
+    end
   end
+
+  if user then user:removeSelf() end
+  if teacher then teacher:removeSelf() end
+  if bubble then teacher:removeSelf() end
+
+  addUser()
+  addTeacher()
+
+  desks = {}
+  if level == 1 then
+    desks[1] = addDesk( 70, 200)
+    desks[2] = addDesk( 270, 200, 'rubber')
+    desks[3] = addDesk( 160, 330, 'paper')
+  elseif level == 2 then
+    desks[1] = addDesk( 60, 170, 'plane')
+    desks[2] = addDesk( 250, 210, 'pen')
+    desks[3] = addDesk( 85, 280)
+    desks[4] = addDesk( 70, 380, 'pencil')
+  elseif level == 3 then
+    desks[1] = addDesk( 70, 170, 'ruler')
+    desks[2] = addDesk( 270, 170)
+    desks[3] = addDesk( 70, 290, 'pencil')
+    desks[4] = addDesk( 270, 280, 'paper')
+    desks[5] = addDesk( 70, 400)
+  elseif level == 4 then
+    desks[1] = addDesk( 70, screenH -300, 'plane')
+    desks[2] = addDesk( 230, screenH - 300, 'rubber')
+    desks[3] = addDesk( 160, screenH - 130, 'can')
+  elseif level == 5 then
+    desks[1] = addDesk( 70, 170, 'ruler')
+    desks[2] = addDesk( 270, 170, 'plane')
+    desks[3] = addDesk( 70, 290, 'pencil')
+    desks[4] = addDesk( 270, 280, 'paper')
+    desks[5] = addDesk( 70, 400, 'can')
+  elseif level == 6 then
+    desks[1] = addDesk( 180, 170, 'ruler')
+    desks[4] = addDesk( 270, 280, 'paper')
+    desks[5] = addDesk( 70, 400, 'can')
+  elseif level == 7 then
+    desks[1] = addDesk( 70, 170, 'ruler')
+    desks[2] = addDesk( 270, 170)
+    desks[3] = addDesk( 180, 290, 'pencil')
+    desks[5] = addDesk( 70, 400)
+  elseif level == 8 then
+    desks[1] = addDesk( 70, 170, 'ruler')
+    desks[2] = addDesk( 270, 170)
+    desks[3] = addDesk( 70, 290, 'pencil')
+    desks[4] = addDesk( 270, 280, 'paper')
+    desks[5] = addDesk( 70, 400)
+  elseif level == 9 then
+    desks[1] = addDesk( 70, 170, 'ruler')
+    desks[2] = addDesk( 270, 170)
+    desks[3] = addDesk( 70, 290, 'pencil')
+    desks[4] = addDesk( 270, 280, 'paper')
+    desks[5] = addDesk( 70, 400)
+  end
+
+  show3()
 end
 
 
