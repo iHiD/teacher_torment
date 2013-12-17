@@ -109,12 +109,6 @@ function throw()
   throw:applyForce( x, y, throw.x, throw.y )
 end
 
-function removeBubble()
-  if not bubble then return end
-  bubble:removeSelf()
-  bubble = nil
-end
-
 function moveSelectableToUser()
   selectedThrowable.isAwake = true
   selectedThrowable.rotation = 0
@@ -145,7 +139,7 @@ function checkForNextLevel()
   end
   if throwablesLeft then return false end
 
-  if bubble then bubble:removeSelf() end
+  if bubble then resetBubble() end
 
   numberImg = display.newImageRect( "level_complete.png", 300, 100 )
   numberImg.x = 150
@@ -160,9 +154,23 @@ function updateScore()
   scoreBox.text = score
 end
 
+function resetTeacher()
+  if teacher then
+    teacher:removeSelf()
+    teacher = nil
+  end
+end
+
+function resetUser()
+  if user then
+    user:removeSelf()
+    user = nil
+  end
+end
+
 function resetBubble()
   if bubble then
-    bubble.removeSelf()
+    bubble:removeSelf()
     bubble = nil
   end
 end
@@ -177,7 +185,7 @@ function checkForStrike()
       bubble = display.newImageRect( "caught_you.png", 300, 100 )
       bubble.x = 150
       bubble.y = 90
-      timer.performWithDelay(3000, removeBubble)
+      timer.performWithDelay(3000, resetBubble)
       checkForNextLevel()
     elseif strikes == 2 then
       life2.isVisible = false
@@ -185,7 +193,7 @@ function checkForStrike()
       bubble = display.newImageRect( "caught_you.png", 300, 100 )
       bubble.x = 150
       bubble.y = 90
-      timer.performWithDelay(3000, removeBubble)
+      timer.performWithDelay(3000, resetBubble)
       checkForNextLevel()
     elseif strikes == 3 then
       life3.isVisible = false
@@ -247,7 +255,7 @@ local function onCollision( event )
       bubble = display.newImageRect( "who_threw_that.png", 300, 100 )
       bubble.x = 150
       bubble.y = 90
-      timer.performWithDelay(3000, removeBubble)
+      timer.performWithDelay(3000, resetBubble)
       collision_throwable.isVisible = false
       collision_throwable.ignoreCollisions = true
       score = score + 1
@@ -263,7 +271,7 @@ local function onCollision( event )
       bubble = display.newImageRect( "get_off_me.png", 300, 100 )
       bubble.x = 150
       bubble.y = 90
-      timer.performWithDelay(2000, removeBubble)
+      timer.performWithDelay(2000, resetBubble)
     end
   end
 end
@@ -353,6 +361,7 @@ function setupThrowable(throwable)
   material = {density=0.1, friction=1, bounce=0.1}
   physics.addBody( throwable, 'dynamic', material)
   throwable.name = "Throwable"
+  throwable.ignoreCollisions = false
   throwable.isSensor = true
   throwables[#throwables + 1] = throwable
   return throwable
@@ -420,10 +429,6 @@ function scene:createScene( event )
   addLives()
   gameListeners('add')
 
-
-  --scoreBoxBg = display.newRect( 30, 320, 60, 60)
-  --scoreBoxBg:setFillColor( 0, 0, 0, 0.3 )
-
   scoreBox = display.newText('0', 40, 450, 60, 60, "Helvetica-Bold", 40)
 
   user:applyForce( 0, -100, user.x, user.y )
@@ -472,9 +477,9 @@ function loadLevel()
     end
   end
 
-  if user then user:removeSelf() end
-  if teacher then teacher:removeSelf() end
-  if bubble then teacher:removeSelf() end
+  resetUser()
+  resetTeacher()
+  resetBubble()
 
   addUser()
   addTeacher()
